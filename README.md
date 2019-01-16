@@ -2,11 +2,13 @@
 
 This is an extended torch.nn.Linear module which mask connection.
 
+![what is mask](./doc/img/what_mask.png)
+
 I use pytorch.
 
 The module accept tensor named 'mask'.
 
-Size of 'mask' is [n_input_feature, n_output_feature] 
+Size of 'mask' is [n_input_feature, n_output_feature]
 and the elements are {0, 1} which declares masked or not.
 
 （torchのnn.Linearを拡張して、結合の有無を指定できるようにしました。
@@ -39,7 +41,7 @@ import numpy as np
 
 from MaskedLinear import MaskedLinear
 
-# setting 
+# setting
 dtype = torch.float
 
 # size of layers
@@ -66,7 +68,7 @@ learning_rate = 1e-4
 for t in range(100):
     # forward
     y_pred = model(x)
-    
+
     # loss
     loss = (y_pred - y).pow(2).sum()
     print('------')
@@ -77,7 +79,7 @@ for t in range(100):
 
     # Use autograd to compute the backward pass
     loss.backward()
-    
+
     # Update the weights
     with torch.no_grad():
         for param in model.parameters():
@@ -88,5 +90,3 @@ for t in range(100):
                 print(param.grad)
 
 ```
-
-
