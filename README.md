@@ -2,6 +2,8 @@
 
 This is an extended torch.nn.Linear module which mask connection.
 
+I use pytorch.
+
 The module accept tensor named 'mask'.
 
 Size of 'mask' is [n_input_feature, n_output_feature] 
@@ -12,10 +14,16 @@ and the elements are {0, 1} which declares masked or not.
 'mask'はtensorで[入力ニューロン数,出力ニューロン数]の次元で、結合の有無を{0,1}で指定します。
 ）
 
+# python version
+Python 3.6.4
+
 
 # Requirement
-
+```
 torch==1.0.0
+numpy==1.14.5
+numpydoc==0.7.0
+```
 
 # How to use this
 
