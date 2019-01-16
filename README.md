@@ -1,6 +1,6 @@
-# MaskedLinear
+# CustomizedLinear
 
-This is an extended torch.nn.Linear module which mask connection.
+This is an extended torch.nn.Linear module that can customize the connection.
 
 ![what is mask](./doc/img/what_mask.png)
 
@@ -39,7 +39,7 @@ please see 'how_to_use_this.py'.
 import torch
 import numpy as np
 
-from MaskedLinear import MaskedLinear
+from CustomizedLinear import CustomizedLinear
 
 # setting
 dtype = torch.float
@@ -47,35 +47,35 @@ dtype = torch.float
 # size of layers
 Dim_IN = 2
 Dim_H = 5
-Dim_OUT = 1  
+Dim_OUT = 1
 
 # mask matrix whose elements are 0 or 1.
-get_bin_matrix = lambda Dim0, Dim1 : np.random.choice([0,1], size=(Dim0, Dim1))    
+get_bin_matrix = lambda Dim0, Dim1 : np.random.choice([0,1], size=(Dim0, Dim1))
 mask  = torch.tensor(get_bin_matrix(Dim_IN, Dim_H), dtype=dtype)
 
-# randomly create input x and output y.
-batch = 64
+# randomly create input x
+batch = 2**12
 x = torch.randn(batch, Dim_IN, dtype=dtype)
+
+# create y on answer_w
 y = torch.randn(batch, Dim_OUT, dtype=dtype)
 
 # pipe as model
 model = torch.nn.Sequential(
-        MaskedLinear(mask, bias=None),
+        CustomizedLinear(mask, bias=None),
         torch.nn.Linear(Dim_H, Dim_OUT, bias=None),
         )
 # backward pass
-learning_rate = 1e-4
-for t in range(100):
+learning_rate = 1e-2
+for t in range(1000):
     # forward
     y_pred = model(x)
 
     # loss
-    loss = (y_pred - y).pow(2).sum()
-    print('------')
-    print('epoch={}, loss={}'.format(t,loss.item()))
+    loss = (y_pred - y).abs().mean()
 
     # Zero the gradients before running the backward pass.
-    model.zero_grad()        
+    model.zero_grad()
 
     # Use autograd to compute the backward pass
     loss.backward()
@@ -86,7 +86,11 @@ for t in range(100):
             param -= learning_rate * param.grad
             # check masked param.grad
             if np.array(param.grad).size == np.array(mask).size:
-                print('↓↓↓masked grad of weight↓↓↓')
-                print(param.grad)
+                if t % 100 == 0:
+                    print('epoch={}, loss={}'.format(t,loss.item()))
+                    print('------')
+                    print('↓↓↓masked grad of weight↓↓↓')
+                    print(param.grad.t())
+    
 
 ```

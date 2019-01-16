@@ -9,14 +9,14 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-# setting 
+# setting
 dtype = torch.float
 
 # size of layers
 Dim_IN = 2
 Dim_H0 = 4
 Dim_H1 = 3
-Dim_OUT = 1  
+Dim_OUT = 1
 
 # mask matrix whose elements are 0 or 1.
 get_bin_matrix = lambda Dim0, Dim1 : np.random.choice([0,1], size=(Dim0, Dim1))
@@ -33,11 +33,11 @@ y = torch.randn(batch, Dim_OUT, dtype=dtype)
 #################################
 # Define custome autograd function for masked connection.
 
-class MaskedLinearFunction(torch.autograd.Function):
+class CustomizedLinearFunction(torch.autograd.Function):
     """
     autograd function which masks it's weights by 'mask'.
     """
-    
+
     # Note that both forward and backward are @staticmethods
     @staticmethod
     # bias, mask is an optional argument
@@ -79,21 +79,21 @@ class MaskedLinearFunction(torch.autograd.Function):
         return grad_input, grad_weight, grad_bias, grad_mask
 
 
-class MaskedLinear(nn.Module):
+class CustomizedLinear(nn.Module):
     def __init__(self, mask, bias=True):
         """
         extended torch.nn module which mask connection.
-        
+
         Argumens
         ------------------
         mask [torch.tensor]:
             the shape is (n_input_feature, n_output_feature).
-            the elements are 0 or 1 which declare un-connected or 
+            the elements are 0 or 1 which declare un-connected or
             connected.
         bias [bool]:
             flg of bias.
         """
-        super(MaskedLinear, self).__init__()
+        super(CustomizedLinear, self).__init__()
         self.input_features = mask.shape[0]
         self.output_features = mask.shape[1]
         self.mask = mask.t()
@@ -113,18 +113,18 @@ class MaskedLinear(nn.Module):
             # You should always register all possible parameters, but the
             # optional ones can be None if you want.
             self.register_parameter('bias', None)
-            
+
         # Not a very smart way to initialize weights
         self.weight.data.uniform_(-0.1, 0.1)
         if bias is not None:
             self.bias.data.uniform_(-0.1, 0.1)
-        
+
         # mask weight
         self.weight.data = self.weight.data * self.mask
-        
+
     def forward(self, input):
         # See the autograd section for explanation of what happens here.
-        return MaskedLinearFunction.apply(input, self.weight, self.bias, self.mask)
+        return CustomizedLinearFunction.apply(input, self.weight, self.bias, self.mask)
 
     def extra_repr(self):
         # (Optional)Set the extra information about this module. You can test
@@ -132,4 +132,3 @@ class MaskedLinear(nn.Module):
         return 'input_features={}, output_features={}, bias={}'.format(
             self.input_features, self.output_features, self.bias is not None
         )
-
