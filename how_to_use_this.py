@@ -31,7 +31,7 @@ model = torch.nn.Sequential(
         )
 # backward pass
 learning_rate = 1e-2
-for t in range(1000):
+for t in range(10):
     # forward
     y_pred = model(x)
 
@@ -49,10 +49,10 @@ for t in range(1000):
         for param in model.parameters():
             param -= learning_rate * param.grad
             # check masked param.grad
+            print(param.grad.t())
             if np.array(param.grad).size == np.array(mask).size:
-                if t % 100 == 0:
-                    print('epoch={}, loss={}'.format(t,loss.item()))
-                    print('------')
-                    print('↓↓↓masked grad of weight↓↓↓')
-                    print(param.grad.t())
+                print('epoch={}, loss={}'.format(t,loss.item()))
+                print('------')
+                print('↓↓↓masked grad of weight↓↓↓')
+                print(param.grad.t())
     

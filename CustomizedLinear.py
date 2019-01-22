@@ -7,28 +7,6 @@ I customized the code from https://pytorch.org/docs/stable/notes/extending.html
 """
 import torch
 import torch.nn as nn
-import numpy as np
-
-# setting
-dtype = torch.float
-
-# size of layers
-Dim_IN = 2
-Dim_H0 = 4
-Dim_H1 = 3
-Dim_OUT = 1
-
-# mask matrix whose elements are 0 or 1.
-get_bin_matrix = lambda Dim0, Dim1 : np.random.choice([0,1], size=(Dim0, Dim1))
-
-mask_IN_H0  = torch.tensor(get_bin_matrix(Dim_IN, Dim_H0), dtype=dtype)
-mask_H0_H1  = torch.tensor(get_bin_matrix(Dim_H0, Dim_H1), dtype=dtype)
-
-# randomly create input x and output y.
-batch = 64
-x = torch.randn(batch, Dim_IN, dtype=dtype)
-y = torch.randn(batch, Dim_OUT, dtype=dtype)
-
 
 #################################
 # Define custome autograd function for masked connection.
@@ -45,10 +23,10 @@ class CustomizedLinearFunction(torch.autograd.Function):
         if mask is not None:
             # change weight to 0 where mask == 0
             weight = weight * mask
-        ctx.save_for_backward(input, weight, bias, mask)
         output = input.mm(weight.t())
         if bias is not None:
             output += bias.unsqueeze(0).expand_as(output)
+        ctx.save_for_backward(input, weight, bias, mask)
         return output
 
     # This function has only a single output, so it gets only one gradient
@@ -73,7 +51,8 @@ class CustomizedLinearFunction(torch.autograd.Function):
             if mask is not None:
                 # change grad_weight to 0 where mask == 0
                 grad_weight = grad_weight * mask
-        if bias is not None and ctx.needs_input_grad[2]:
+        #if bias is not None and ctx.needs_input_grad[2]:
+        if ctx.needs_input_grad[2]:
             grad_bias = grad_output.sum(0).squeeze(0)
 
         return grad_input, grad_weight, grad_bias, grad_mask
@@ -132,3 +111,28 @@ class CustomizedLinear(nn.Module):
         return 'input_features={}, output_features={}, bias={}'.format(
             self.input_features, self.output_features, self.bias is not None
         )
+
+
+
+
+
+if __name__ == 'check grad':
+    from torch.autograd import gradcheck
+    
+    # gradcheck takes a tuple of tensors as input, check if your gradient
+    # evaluated with these tensors are close enough to numerical
+    # approximations and returns True if they all verify this condition.
+
+    customlinear = CustomizedLinearFunction.apply
+
+    input = (
+            torch.randn(20,20,dtype=torch.double,requires_grad=True), 
+            torch.randn(30,20,dtype=torch.double,requires_grad=True),
+            None,
+            None,
+            )
+    test = gradcheck(customlinear, input, eps=1e-6, atol=1e-4)
+    print(test)    
+    
+    
+    
