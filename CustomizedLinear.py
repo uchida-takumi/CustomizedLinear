@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-extended torch.nn module which mask connection.
+extended torch.nn module which cusmize connection.
 
-I customized the code from https://pytorch.org/docs/stable/notes/extending.html
+This code base on https://pytorch.org/docs/stable/notes/extending.html
 """
+import math
 import torch
 import torch.nn as nn
 
@@ -92,14 +93,17 @@ class CustomizedLinear(nn.Module):
             # You should always register all possible parameters, but the
             # optional ones can be None if you want.
             self.register_parameter('bias', None)
-
-        # Not a very smart way to initialize weights
-        self.weight.data.uniform_(-0.1, 0.1)
-        if bias is not None:
-            self.bias.data.uniform_(-0.1, 0.1)
+        self.reset_parameters()
 
         # mask weight
         self.weight.data = self.weight.data * self.mask
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
 
     def forward(self, input):
         # See the autograd section for explanation of what happens here.
