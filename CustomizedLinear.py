@@ -76,7 +76,7 @@ class CustomizedLinear(nn.Module):
         super(CustomizedLinear, self).__init__()
         self.input_features = mask.shape[0]
         self.output_features = mask.shape[1]
-        self.mask = mask.t()
+        self.mask = torch.tensor(mask, dtype=torch.float).t()
 
         # nn.Parameter is a special kind of Tensor, that will get
         # automatically registered as Module's parameter once it's assigned
