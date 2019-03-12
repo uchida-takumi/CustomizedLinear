@@ -9,7 +9,21 @@ I use pytorch.
 The module accept tensor named 'mask'.
 
 Size of 'mask' is [n_input_feature, n_output_feature]
-and the elements are {0, 1} which declares masked or not.
+and the elements are {0, 1} which declares masked connection or not.
+
+```
+# example of mask
+import torch
+## mask which define a connection.
+## The connection has 4-dim from-layer and 3-dim to-layer.
+## And the connection is Sparse like as 'Sparse Connections' of the above chart.
+mask = torch.tensor(
+  [[1, 0, 1],
+   [0, 1, 0],
+   [1, 0, 1],
+   [1, 0, 1],]
+  )
+```
 
 （torchのnn.Linearを拡張して、結合の有無を指定できるようにしました。
 結合の有無は引数'mask'で指定します。
@@ -21,10 +35,10 @@ Python 3.6.4
 
 
 # Requirement
+
 ```
-torch==1.0.0
-numpy==1.14.5
-numpydoc==0.7.0
+torch
+numpy
 ```
 
 # How to use this
@@ -41,27 +55,28 @@ import numpy as np
 
 from CustomizedLinear import CustomizedLinear
 
-# size of layers
-Dim_INPUT  = 2
-Dim_HIDDEN = 5
-Dim_OUTPUT = 1
-
 # mask matrix of INPUT-HIDDEN whose elements are 0 or 1.
-get_bin_matrix = lambda Dim0, Dim1 : np.random.choice([0,1], size=(Dim0, Dim1))
-mask  = torch.tensor(get_bin_matrix(Dim_INPUT, Dim_HIDDEN))
+mask = torch.tensor(
+  [[1, 0, 1],
+   [0, 1, 0],
+   [1, 0, 1],
+   [1, 0, 1],]
+  )
 
-# create randomly input x
-batch = 1
+# build customizedLinear as model
+model = CustomizedLinear(mask, bias=None)
+
+# So, dimmention of input is 4.  (mask.size()[0])
+# dimmention of output is 3. (mask.size()[1])
+Dim_INPUT = mask.size()[0]
+Dim_OUTPUT = mask.size()[1]
+
+
+# create randomly input x and output y
+batch = 8
 x = torch.randn(batch, Dim_INPUT)
-
-# create randomly output y 
 y = torch.randn(batch, Dim_OUTPUT)
 
-# pipe as model
-model = torch.nn.Sequential(
-        CustomizedLinear(mask, bias=None),
-        torch.nn.Linear(Dim_HIDDEN, Dim_OUTPUT, bias=None),
-        )
 
 # backward pass
 print('=== mask matrix ===')
@@ -92,7 +107,7 @@ for t in range(3):
                 print(param.t())
                 print('↓↓↓masked grad of weight↓↓↓')
                 print(param.grad.t())
-    
+
 
 """ print result
 
