@@ -1,115 +1,144 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-This is test code for CustomizedLinear.py
+extended torch.nn module which cusmize connection.
+
+This code base on https://pytorch.org/docs/stable/notes/extending.html
 """
-
-import unittest
-from CustomizedLinear import CustomizedLinear
-
-import numpy as np
+import math
 import torch
+import torch.nn as nn
 
-class test_CustomizedLinear(unittest.TestCase):
-    
-    def setUp(self):
-        print('== setUp ==')
-        
-    def test_case01(self):
+#################################
+# Define custome autograd function for masked connection.
+
+class CustomizedLinearFunction(torch.autograd.Function):
+    """
+    autograd function which masks it's weights by 'mask'.
+    """
+
+    # Note that both forward and backward are @staticmethods
+    @staticmethod
+    # bias, mask is an optional argument
+    def forward(ctx, input, weight, bias=None, mask=None):
+        if mask is not None:
+            # change weight to 0 where mask == 0
+            weight = weight * mask
+        output = input.mm(weight.t())
+        if bias is not None:
+            output += bias.unsqueeze(0).expand_as(output)
+        ctx.save_for_backward(input, weight, bias, mask)
+        return output
+
+    # This function has only a single output, so it gets only one gradient
+    @staticmethod
+    def backward(ctx, grad_output):
+        # This is a pattern that is very convenient - at the top of backward
+        # unpack saved_tensors and initialize all gradients w.r.t. inputs to
+        # None. Thanks to the fact that additional trailing Nones are
+        # ignored, the return statement is simple even when the function has
+        # optional inputs.
+        input, weight, bias, mask = ctx.saved_tensors
+        grad_input = grad_weight = grad_bias = grad_mask = None
+
+        # These needs_input_grad checks are optional and there only to
+        # improve efficiency. If you want to make your code simpler, you can
+        # skip them. Returning gradients for inputs that don't require it is
+        # not an error.
+        if ctx.needs_input_grad[0]:
+            grad_input = grad_output.mm(weight)
+        if ctx.needs_input_grad[1]:
+            grad_weight = grad_output.t().mm(input)
+            if mask is not None:
+                # change grad_weight to 0 where mask == 0
+                grad_weight = grad_weight * mask
+        #if bias is not None and ctx.needs_input_grad[2]:
+        if ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum(0).squeeze(0)
+
+        return grad_input, grad_weight, grad_bias, grad_mask
+
+
+class CustomizedLinear(nn.Module):
+    def __init__(self, mask, bias=True):
         """
-        Can it solve bellow problem? 
-        ----------------------------       
-        0*x_0 + 1*x_1 + 2*x_2 + 3*x_3 = y_0
-        9*x_0 + 0*x_1 + 0*x_2 + 6*x_3 = y_1
-        2*x_0 + 0*x_1 + 4*x_2 + 0*x_3 = y_2
+        extended torch.nn module which mask connection.
+
+        Argumens
+        ------------------
+        mask [torch.tensor]:
+            the shape is (n_input_feature, n_output_feature).
+            the elements are 0 or 1 which declare un-connected or
+            connected.
+        bias [bool]:
+            flg of bias.
         """
-        answer_weight = [
-                [0, 9, 2],
-                [1, 0, 0],
-                [2, 0, 4],
-                [3, 6, 0],
-                ]
-        mask = (np.array(answer_weight)>0).astype(int)
-        CL = CustomizedLinear(mask, bias=False)
-        
-        x = np.random.rand(1000, 4)
-        y = np.dot(x, answer_weight)
-        train(CL, x, y)
-        predicted_weight = list(CL.parameters())[0].t()
-        
-        error = np.array(answer_weight) - predicted_weight.data.numpy()
-        self.assertLess(error.mean(), 0.01)
-        
-    def test_case02(self):
-        """
-        Can it work as one of multiple layer?
-        """
-        mask0 = np.array([
-                    [0,1,1,1],
-                    [1,1,0,1],
-                ])
-        mask1 = np.array([
-                    [0,1,1,1],
-                    [1,1,0,1],
-                    [1,0,0,1],
-                    [0,1,1,1],
-                ])
-        mask2 = np.array([
-                    [0,1],
-                    [1,1],
-                    [1,0],
-                    [1,1],
-                ])
-        
-        def get_sequantial():
-            CL0 = CustomizedLinear(mask0)
-            CL1 = CustomizedLinear(mask1)
-            CL2 = CustomizedLinear(mask2)
-            
-            sequencial = torch.nn.Sequential(
-                    CL0, torch.nn.ReLU(), CL1, torch.nn.ReLU(), CL2)
-            
-            return sequencial
-        
-        answer_sequencial = get_sequantial()
-        train_sequencial  = get_sequantial()
-        
-        x = torch.tensor(np.random.rand(1000, 2), dtype=torch.float32)
-        y = answer_sequencial(x)
-        
-        train_x, train_y = x[:800], y[:800]
-        test_x,  test_y  = x[800:], y[800:]
-        
-        train(train_sequencial, train_x, train_y, epoch=10)
-        predict_y = train_sequencial(test_x)
-        abs_error = abs(predict_y - test_y)
-        abs_error_rate = abs_error.sum() / abs(test_y).sum()
-        
-        # Assertion
-        self.assertLess(abs_error_rate.item(), 0.05)
-        
-    def tearDown(self):
-        print('== tearDown ==')
+        super(CustomizedLinear, self).__init__()
+        self.input_features = mask.shape[0]
+        self.output_features = mask.shape[1]
+        if isinstance(mask, torch.Tensor):
+            self.mask = mask.type(torch.float).t()
+        else:
+            self.mask = torch.tensor(mask, dtype=torch.float).t()
+
+        self.mask = nn.Parameter(self.mask, requires_grad=False)
+
+        # nn.Parameter is a special kind of Tensor, that will get
+        # automatically registered as Module's parameter once it's assigned
+        # as an attribute. Parameters and buffers need to be registered, or
+        # they won't appear in .parameters() (doesn't apply to buffers), and
+        # won't be converted when e.g. .cuda() is called. You can use
+        # .register_buffer() to register buffers.
+        # nn.Parameters require gradients by default.
+        self.weight = nn.Parameter(torch.Tensor(self.output_features, self.input_features))
+
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(self.output_features))
+        else:
+            # You should always register all possible parameters, but the
+            # optional ones can be None if you want.
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+        # mask weight
+        self.weight.data = self.weight.data * self.mask
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
 
 
-def train(model, x, y, epoch=10):
-    _x = torch.tensor(x, dtype=torch.float32)
-    _y = torch.tensor(y, dtype=torch.float32)
-    criterion = torch.nn.L1Loss(reduction='mean')    
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    for t in range(epoch):
-        for i in range(_x.shape[0]):
-            __x = _x[[i]]
-            __y = _y[[i]]
-            forward = model(__x)
-            loss = criterion(forward, __y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+    def forward(self, input):
+        # See the autograd section for explanation of what happens here.
+        return CustomizedLinearFunction.apply(input, self.weight, self.bias, self.mask)
 
-            
-if __name__ == '__main__':
-    unittest.main()
+    def extra_repr(self):
+        # (Optional)Set the extra information about this module. You can test
+        # it by printing an object of this class.
+        return 'input_features={}, output_features={}, bias={}'.format(
+            self.input_features, self.output_features, self.bias is not None
+        )
 
 
-    
+
+
+
+if __name__ == 'check grad':
+    from torch.autograd import gradcheck
+
+    # gradcheck takes a tuple of tensors as input, check if your gradient
+    # evaluated with these tensors are close enough to numerical
+    # approximations and returns True if they all verify this condition.
+
+    customlinear = CustomizedLinearFunction.apply
+
+    input = (
+            torch.randn(20,20,dtype=torch.double,requires_grad=True),
+            torch.randn(30,20,dtype=torch.double,requires_grad=True),
+            None,
+            None,
+            )
+    test = gradcheck(customlinear, input, eps=1e-6, atol=1e-4)
+    print(test)
