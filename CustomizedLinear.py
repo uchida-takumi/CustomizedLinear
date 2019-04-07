@@ -81,6 +81,7 @@ class CustomizedLinear(nn.Module):
         else:
             self.mask = torch.tensor(mask, dtype=torch.float).t()
 
+        self.mask = nn.Parameter(self.mask, requires_grad=False)
 
         # nn.Parameter is a special kind of Tensor, that will get
         # automatically registered as Module's parameter once it's assigned
