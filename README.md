@@ -52,7 +52,6 @@ please see 'how_to_use_this.py'.
 # -*- coding: utf-8 -*-
 import torch
 import numpy as np
-
 from CustomizedLinear import CustomizedLinear
 
 # mask matrix of INPUT-HIDDEN whose elements are 0 or 1.
@@ -99,14 +98,16 @@ for t in range(3):
     # Update the weights
     with torch.no_grad():
         for param in model.parameters():
-            param -= learning_rate * param.grad
-            # check masked param.grad
-            if np.array(param.grad).size == np.array(mask).size:
-                print('--- epoch={}, loss={} ---'.format(t,loss.item()))
-                print('↓↓↓masked weight↓↓↓')
-                print(param.t())
-                print('↓↓↓masked grad of weight↓↓↓')
-                print(param.grad.t())
+            # mask is also saved in param, but mask.requires_grad=False
+            if param.requires_grad: 
+                param -= learning_rate * param.grad
+                # check masked param.grad
+                if np.array(param.grad).size == np.array(mask).size:
+                    print('--- epoch={}, loss={} ---'.format(t,loss.item()))
+                    print('↓↓↓masked weight↓↓↓')
+                    print(param.t())
+                    print('↓↓↓masked grad of weight↓↓↓')
+                    print(param.grad.t())
 
 
 """ print result

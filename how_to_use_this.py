@@ -2,28 +2,30 @@
 # -*- coding: utf-8 -*-
 import torch
 import numpy as np
-
 from CustomizedLinear import CustomizedLinear
 
-# size of layers
-Dim_INPUT  = 2
-Dim_HIDDEN = 5
+# define mask matrix to customize linear
+mask = torch.tensor(
+  [[1, 0, 1],
+   [0, 1, 0],
+   [1, 0, 1],
+   [1, 0, 1],]
+  )
+
+# define size of layers.
+# this architect is [INPUT, HIDDEN(masked(customized) linear), OUTPUT]-layers.
+Dim_INPUT  = mask.shape[0]
+Dim_HIDDEN = mask.shape[1]
 Dim_OUTPUT = 1
 
-# mask matrix of INPUT-HIDDEN whose elements are 0 or 1.
-get_bin_matrix = lambda Dim0, Dim1 : np.random.choice([0,1], size=(Dim0, Dim1))
-mask  = torch.tensor(get_bin_matrix(Dim_INPUT, Dim_HIDDEN))
-
-# create randomly input x
+# create randomly input:x, output:y as train dataset.
 batch = 1
 x = torch.randn(batch, Dim_INPUT)
-
-# create randomly output y 
 y = torch.randn(batch, Dim_OUTPUT)
 
 # pipe as model
 model = torch.nn.Sequential(
-        CustomizedLinear(mask, bias=None),
+        CustomizedLinear(mask, bias=None), # dimmentions is set from mask.size 
         torch.nn.Linear(Dim_HIDDEN, Dim_OUTPUT, bias=None),
         )
 
@@ -48,14 +50,16 @@ for t in range(3):
     # Update the weights
     with torch.no_grad():
         for param in model.parameters():
-            param -= learning_rate * param.grad
-            # check masked param.grad
-            if np.array(param.grad).size == np.array(mask).size:
-                print('--- epoch={}, loss={} ---'.format(t,loss.item()))
-                print('↓↓↓masked weight↓↓↓')
-                print(param.t())
-                print('↓↓↓masked grad of weight↓↓↓')
-                print(param.grad.t())
+            # mask is also saved in param, but mask.requires_grad=False
+            if param.requires_grad: 
+                param -= learning_rate * param.grad
+                # check masked param.grad
+                if np.array(param.grad).size == np.array(mask).size:
+                    print('--- epoch={}, loss={} ---'.format(t,loss.item()))
+                    print('↓↓↓masked weight↓↓↓')
+                    print(param.t())
+                    print('↓↓↓masked grad of weight↓↓↓')
+                    print(param.grad.t())
     
 
 """ print result
